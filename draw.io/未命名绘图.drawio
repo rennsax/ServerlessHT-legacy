@@ -1,0 +1,70 @@
+<mxfile host="app.diagrams.net" modified="2023-07-05T13:29:40.087Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 Edg/113.0.1774.57" etag="E9ioIwirDavs1apBv5z9" version="21.5.2" type="github">
+  <diagram name="第 1 页" id="vYGmFmP2Lva24OXTDVVa">
+    <mxGraphModel dx="744" dy="508" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-3" value="AWS Elastic Container Registry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcc99;strokeColor=#36393d;arcSize=34;" vertex="1" parent="1">
+          <mxGeometry x="176" y="105" width="110" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-4" value="AWS S3" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=7.692307692307637;fillColor=#ffcc99;strokeColor=#36393d;" vertex="1" parent="1">
+          <mxGeometry x="370" y="95" width="54" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-6" value="" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.lambda_function;fillColor=#F58534;gradientColor=none;" vertex="1" parent="1">
+          <mxGeometry x="530" y="100" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-8" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f9f7ed;strokeColor=#36393d;" vertex="1" parent="1">
+          <mxGeometry x="200" y="240" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-1" value="AWS SDK" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#cce5ff;strokeColor=#36393d;" vertex="1" parent="1">
+          <mxGeometry x="208" y="370" width="46" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-9" value="" style="whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="342" y="220" width="130" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-10" value="User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+          <mxGeometry x="80" y="240" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-11" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="130" y="269.62" as="sourcePoint" />
+            <mxPoint x="190" y="269.62" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-12" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="130" y="290" as="sourcePoint" />
+            <mxPoint x="190" y="290" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-13" value="" style="html=1;shape=mxgraph.basic.isocube;isoAngle=15;" vertex="1" parent="1">
+          <mxGeometry x="140" y="230" width="40" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-14" value="torch.nn.Module" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="105" y="205" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-17" value="Client" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="215" y="328" width="50" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-22" value="" style="group" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="142" y="298" width="34" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-18" value="" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=9;" vertex="1" parent="0ty1MtPIsn8DT-ruyWdK-22">
+          <mxGeometry width="24" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-19" value="" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=9;" vertex="1" parent="0ty1MtPIsn8DT-ruyWdK-22">
+          <mxGeometry x="5" y="5" width="24" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-20" value="" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=9;" vertex="1" parent="0ty1MtPIsn8DT-ruyWdK-22">
+          <mxGeometry x="10" y="10" width="24" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-23" value="data/config" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="93" y="332" width="80" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="0ty1MtPIsn8DT-ruyWdK-25" value="Module" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#cce5ff;strokeColor=#36393d;" vertex="1" parent="1">
+          <mxGeometry x="208" y="247" width="46" height="23" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
