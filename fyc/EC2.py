@@ -15,14 +15,19 @@ app = Flask(__name__)
 
 @app.route('/', methods=['POST'])
 def handle_post_request():
-
-    request_data = request.form
+    print("content_type:", request.headers.get("content_type"))
+    print("data:", request.data)
+    print("form:", request.form)
+    print("files:", request.files)
+    request_data = request.get_json()
+    print(request_data)
     request_queue.put(request_data)  # Put the request data into the request queue
 
     print("waiting")
     # Wait to get the response data
     response_data = response_queue.get()
     response_queue.task_done()
+    print(response_data)
 
     return jsonify(response_data)
 
@@ -57,13 +62,14 @@ def restart(data):
 
 def step_average(data):
     # Get step data from 'data' dictionary
-    step = json.loads(data['step'])
+    step = data.get('step')
 
     # Calculate average of the step data
     average = sum(step) / len(step)
     response = {
         'average' : average
     }
+    print(response,"ave")
     return response
 
 
@@ -82,12 +88,13 @@ def process_requests():
      while True:
         data = request_queue.get()  # Get the request data from the request queue
         # Process the request and generate the response data
-        request_type = data['request']
+        request_type = data.get('request')
+        print(request_type)
 
         if request_type == 'restart':
             response = restart(data)
     
-        if request_type == 'step':
+        if request_type == 'average_step':
             response = step_average(data)
 
         # Put the response data into the response queue
