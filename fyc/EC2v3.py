@@ -99,7 +99,7 @@ def restart(data):
         'bucket_name' : bucket_name,
         'params_file_name' : params_file_name,
         'group_id' : group_id,
-        'epochs_done' : epochs_done
+        'epoch' : epochs_done
     }
 
     # Invoke Lambda function asynchronously

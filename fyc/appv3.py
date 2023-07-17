@@ -12,22 +12,24 @@ import torchvision.datasets as datasets
 import os
 import tarfile
 
-session = boto3.Session(
-    aws_access_key_id='AKIAWZDD4R7ZCFG4H75Z',
-    aws_secret_access_key='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',
-    region_name='ap-northeast-1'  # 替换为实际的AWS区域
-)
-
-s3_client = session.client('s3')
-logging.basicConfig(level=logging.INFO)
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def handler(event, context):
 
     time_thread = threading.Thread(target=time_watcher, args=(event, context.function_name))
     time_thread.start()
 
+    logging.basicConfig(level=logging.INFO)
+    
+    session = boto3.Session(
+        aws_access_key_id='AKIAWZDD4R7ZCFG4H75Z',
+        aws_secret_access_key='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',
+        region_name='ap-northeast-1'  
+    )
+
+    s3_client = session.client('s3')
+
     # TODO: train model
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     ip_address = event['ip_address']
     port = event['port']
@@ -125,6 +127,13 @@ def handler(event, context):
 
 def time_watcher(event, function_name):
 
+    session = boto3.Session(
+    aws_access_key_id='AKIAWZDD4R7ZCFG4H75Z',
+    aws_secret_access_key='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',
+    region_name='ap-northeast-1'  
+    )
+
+    s3_client = session.client('s3')
     ip_address = event['ip_address']
     port = event['port']
     if_restart = event['if_restart']
