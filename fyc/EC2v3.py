@@ -93,7 +93,7 @@ def restart(data):
 
     # Prepare payload for Lambda invocation
     payload = {
-        'if_restart' : True,
+        'if_restart' : "True",
         'ip_address' : ip_address,
         'port' : port,
         'bucket_name' : bucket_name,

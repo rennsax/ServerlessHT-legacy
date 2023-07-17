@@ -8,7 +8,9 @@ import threading
 import logging
 import torchvision
 import torchvision.transforms as transforms
+import torchvision.datasets as datasets
 import os
+import tarfile
 
 session = boto3.Session(
     aws_access_key_id='AKIAWZDD4R7ZCFG4H75Z',
@@ -39,20 +41,24 @@ def handler(event, context):
 
     data_path = '/tmp/cifar10_data'
 
-    # 加载 CIFAR-10 数据集
-    train_dataset = torchvision.datasets.CIFAR10(
-        root=data_path,
-        train=True,
-        transform=transforms.ToTensor(),
-        download=True
-    )
+    # 下载 CIFAR-10 数据集文件
+    s3_client = boto3.client('s3')
+    s3_client.download_file(bucket_name, 'cifar10.tar.gz', '/tmp/cifar10.tar.gz')
+
+    # 解压缩数据集文件
+
+    with tarfile.open('/tmp/cifar10.tar.gz', 'r:gz') as tar:
+        tar.extractall(data_path)
+
+    # 创建 CIFAR-10 数据集
+    train_dataset = torchvision.datasets.CIFAR10(root=data_path, train=True, transform=transforms.ToTensor(), download=False)
 
     # 创建数据加载器
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=64,
         shuffle=True,
-        num_workers=2
+        num_workers=0
     )
 
     # 创建 ResNet-18 模型
