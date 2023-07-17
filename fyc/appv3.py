@@ -59,7 +59,7 @@ def handler(event, context):
     model = torchvision.models.resnet18(pretrained=False)
 
     # if_restart
-    if (if_restart == True):
+    if if_restart == "True":
         s3_client = boto3.client('s3')
         s3_client.download_file(bucket_name, params_file_name, '/tmp/model_weights.pth')
         model.load_state_dict(torch.load('/tmp/model_weights.pth'))
