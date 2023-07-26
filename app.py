@@ -57,7 +57,6 @@ def train_model(event, context, lock):
 
     print("s3_client")
 
-    # FIXME 去掉所有的 to(device) 逻辑
     device = torch.device("cpu")
     ip_address = event["ip_address"]
     port = event["port"]
@@ -66,15 +65,15 @@ def train_model(event, context, lock):
     params_file_name = event["params_file_name"]
     group_id = event["group_id"]
     epochs_done = event["epoch"]
-    # FIXME 哪些参数应该取整，哪些不应该？
     len_param = int(event["len_param"])
     num_parts = int(event["num_parts"])
-    input_lr = int(event["lr"])
-    input_momentum = int(event["momentum"])
+    input_lr = float(event["lr"])
+    input_momentum = float(event["momentum"])
     total_epoch = int(event["total_epoch"])
     batch_size = int(event["batch_size"])
     model_s3path = event["model_s3path"]
     data_s3path = event["data_s3path"]
+    test_data_path = event["test_data_path"]
 
     server_address = f"http://{ip_address}:{port}"
 
@@ -223,6 +222,44 @@ def train_model(event, context, lock):
     with open("/tmp/out.txt", "w") as file:
         file.write(last_train_info)
 
+    # 在训练循环完成后
+    # 加载测试数据集并创建数据加载器
+    print("accuracy启动")
+    local_data_path = "/tmp/local_acc"
+    os.makedirs(data_path)
+    # 下载数据集文件
+    s3_client.download_file(bucket_name, test_data_path, "/tmp/datasetacc.tar.gz")
+    print("数据集文件已下载")
+
+    # 解压缩数据集文件
+    with tarfile.open("/tmp/datasetacc.tar.gz", "r:gz") as tar:
+        tar.extractall(local_data_path)
+    print("数据集文件已解压缩")
+
+    # 创建数据集，调整图像尺寸和通道数
+    test_dataset = create_dataset(local_data_path)
+    print("已创建数据集")
+
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=0
+    )
+    print("test_loader")
+    # 计算模型在测试数据集上的准确率
+    accuracy = calculate_accuracy(model, test_loader)
+    print("模型在测试数据集上的准确率：", accuracy)
+
+    message = {
+            "group_id": group_id,
+            "len_param": len_param,
+            "request": "accuracy",
+            "accuracy": accuracy,
+        }
+    
+    if lock[1] == 1:
+        return 0
+
+    response = requests.post(server_address, json=message)
+
     # 将 epoch.txt 文件上传到指定的 S3 桶中
     params_file_name = f"/output_{context.function_name}_{epoch}_{group_id}_{len_param}.pth"  # 替换为您希望存储的 S3 对象的路径
     s3_client.upload_file("/tmp/out.txt", bucket_name, params_file_name)
@@ -247,12 +284,13 @@ def time_watcher(event, function_name, lock):
     len_param = event["len_param"]
     num_parts = event["num_parts"]
     reinvoke_time = int(event["reinvoke_time"])
-    input_lr = int(event["lr"])
-    input_momentum = int(event["momentum"])
+    input_lr = float(event["lr"])
+    input_momentum = float(event["momentum"])
     total_epoch = int(event["total_epoch"])
     batch_size = int(event["batch_size"])
     model_s3path = event["model_s3path"]
     data_s3path = event["data_s3path"]
+    test_data_path = event["test_data_path"]
 
     func_start = time.time()
 
@@ -304,6 +342,7 @@ def time_watcher(event, function_name, lock):
         "batch_size": batch_size,
         "model_s3path": model_s3path,
         "data_s3path": data_s3path,
+        "test_data_path": test_data_path   
     }
 
     # Send HTTP request
@@ -378,3 +417,15 @@ def create_dataset(data_path):
             dataset.append((img, filename))
 
     return dataset
+
+def calculate_accuracy(model, test_loader):
+    model.eval()  # 设置模型为评估模式
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            outputs = model(inputs)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    return correct / total

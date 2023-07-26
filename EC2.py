@@ -4,11 +4,15 @@ import pickle
 import queue
 import sys
 import threading
-
+import os
 import boto3
 import numpy as np
 import requests
 from flask import Flask, jsonify, request
+import torch
+import torchvision.transforms as transforms
+from PIL import Image
+import tarfile
 
 step_request_queue = {}  # 请求队列
 step_response_queue = {}  # 响应队列
@@ -84,7 +88,7 @@ def restart_worker():
         )  # Put the response data into the restart response queue
 
 
-def step_worker(group_id):
+def step_worker(group_id, bucket_name, test_data_path, model_s3path, batch_size, epoch):
     overall_average_event = overall_average_events[group_id]
     waitrall_average_event = waitrall_average_events[group_id]
 
@@ -127,6 +131,9 @@ def step_worker(group_id):
                 current_number[group_id] = 0
 
                 overall_average_event.set()
+
+                if sum[group_id] == epoch +1:
+                    calculate_accuracy_begin(bucket_name, test_data_path, model_s3path, batch_size, step_average_all)
 
 
 def restart(data):
@@ -272,6 +279,7 @@ def main():
     reinvoke_time = args[9] if len(args) > 9 else None
     model_s3path = args[10] if len(args) > 10 else None
     data_s3path = args[11] if len(args) > 11 else None
+    test_data_path = args[12] if len(args) > 12 else None
 
     # Create and start the thread for processing step requests for each group
     for group_id in range(int(total_groups)):
@@ -279,8 +287,6 @@ def main():
         current_number.append(0)
         overall_average_events[group_id] = threading.Event()
         waitrall_average_events[group_id] = threading.Event()
-        step_thread = threading.Thread(target=step_worker, args=(group_id,))
-        step_thread.start()
 
         step_request_queue[group_id] = queue.Queue()
         step_response_queue[group_id] = queue.Queue()
@@ -304,8 +310,11 @@ def main():
             "reinvoke_time": reinvoke_time,
             "batch_size": batch_size,
             "model_s3path": model_s3path,
-            "data_s3path": data_s3path,
+            "data_s3path": data_s3path
         }
+
+        step_thread = threading.Thread(target=step_worker, args=(group_id, bucket_name, test_data_path, model_s3path, batch_size, epoch))
+        step_thread.start()
 
         lambda_client = boto3.client("lambda", region_name="ap-northeast-1")
 
@@ -320,6 +329,99 @@ def main():
             )
 
     app.run(host="0.0.0.0", port=int(port))
+
+
+def calculate_accuracy_begin(bucket_name, test_data_path, model_s3path, batch_size, row_new_model_weights):
+
+    session = boto3.Session()
+
+    s3_client = session.client("s3")
+
+    device = torch.device("cpu")
+
+    # Create model
+    model = load_model_from_path(model_s3path, device)
+    print("model created")
+    model_weights_bytes = base64.b64decode(row_new_model_weights)
+    new_model_weights = pickle.loads(model_weights_bytes)
+    new_state_dict = {}
+    for key, value in new_model_weights.items():
+        new_state_dict[key] = torch.tensor(value)
+    model.load_state_dict(new_state_dict)
+    # 在训练循环完成后
+    # 加载测试数据集并创建数据加载器
+    
+    print("accuracy启动")
+    data_path = "/tmp/local_acc"
+    if not os.path.exists(data_path):
+        os.makedirs(data_path)
+        # 下载数据集文件
+        s3_client.download_file(bucket_name, test_data_path, "/tmp/datasetacc.tar.gz")
+        print("数据集文件已下载")
+
+        # 解压缩数据集文件
+        with tarfile.open("/tmp/datasetacc.tar.gz", "r:gz") as tar:
+            tar.extractall(data_path)
+        print("数据集文件已解压缩")
+
+    # 创建数据集，调整图像尺寸和通道数
+    test_dataset = create_dataset(data_path)
+    print("已创建数据集")
+
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=0
+    )
+    print("test_loader")
+    # 计算模型在测试数据集上的准确率
+    accuracy = calculate_accuracy(model, test_loader)
+    print("模型在测试数据集上的准确率：", accuracy)
+
+def load_model_from_path(path, device):
+    model = torch.load(path, map_location=device)
+    model.eval()  # 设置为评估模式
+    return model
+
+
+def create_dataset(data_path):
+    """
+    创建数据集，不调整图像尺寸和通道数
+
+    参数：
+    data_path (str)：数据集路径
+
+    返回：
+    dataset (List)：包含原始图像的数据集列表，每个元素是一个元组 (image, filename)
+    """
+
+    dataset = []
+
+    for filename in os.listdir(data_path):
+        filepath = os.path.join(data_path, filename)
+
+        # 检查是否为文件（不是目录）
+        if os.path.isfile(filepath):
+            img = Image.open(filepath)
+
+            # 将图像转换为张量
+            transform = transforms.ToTensor()
+            img = transform(img)
+
+            # 添加到数据集中
+            dataset.append((img, filename))
+
+    return dataset
+
+def calculate_accuracy(model, test_loader):
+    model.eval()  # 设置模型为评估模式
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            outputs = model(inputs)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    return correct / total
 
 
 if __name__ == "__main__":
