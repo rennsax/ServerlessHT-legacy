@@ -123,9 +123,10 @@ if __name__ == "__main__":
 
         acc = total_correct_cnt / total_sample_cnt
         print(f"Epoch {epoch}, test acc: {acc:.3f}\n", flush=True)
+        stop_time = time.time()
 
         if epoch == EPOCH:
             with open(args.output, "a") as f:
                 f.write(
-                    f"{args.batch_size:d},{args.learning_rate:.3f},{args.momentum:.1f},{acc:.4f}\n"
+                    f"{args.batch_size:d},{args.learning_rate:.4f},{args.momentum:.1f},{acc:.4f},{stop_time-start_time:.2f}\n"
                 )
