@@ -1,19 +1,15 @@
+import asyncio
 import csv
 import random
 
 import numpy as np
 from deap import base, creator, tools
-from pydantic import BaseModel, PositiveInt, PositiveFloat
 
+from train import train
+from models import Hyperparameter
 
 # np.random.seed(12)
 # random.seed(12)
-
-
-class Hyperparameter(BaseModel):
-    batch_size: PositiveInt
-    learning_rate: PositiveFloat
-    momentum: PositiveFloat
 
 
 def initialize():
@@ -102,10 +98,9 @@ def initialize():
             res[key] = (float(row["accuracy"]), float(row["time"]))
         return res
 
-    offline_data = handle_offline_data(OFFLINE_DATA)
-
-    def evaluate(
+    async def evaluate_individual(
         ind: creator.Individual,
+        offline_data=handle_offline_data(OFFLINE_DATA),
     ) -> tuple[float]:
         """Evaluate the fitness of an individual
         args:
@@ -113,8 +108,10 @@ def initialize():
         returns:
             a tuple of fitness value (test accuracy)
         """
-        acc, _ = offline_data[hash_individual(ind)]
-        return (acc,)
+        # if offline data is provided
+        # acc, _ = offline_data[hash_individual(ind)]
+        res = await train(decode_individual(ind))
+        return (res[0],)
 
     toolbox.register("random_individual", random_individual)
     toolbox.register("random_population", random_population)
@@ -122,40 +119,24 @@ def initialize():
     toolbox.register("decode_individual", decode_individual)
     toolbox.register("hash_individual", hash_individual)
     toolbox.register("hash_decode_individual", hash_decode_individual)
-    toolbox.register("evaluate", evaluate)
+    toolbox.register("evaluate", evaluate_individual)
     toolbox.register("select", tools.selTournament, tournsize=2)
     toolbox.register("crossover", tools.cxUniform, indpb=CROSSOVER_PROB)
     toolbox.register("mutate", tools.mutFlipBit, indpb=MUTATION_PROB)
 
 
-if __name__ == "__main__":
-    toolbox = base.Toolbox()
-
-    # Define the hyperparameter searching space, which need 8 bits to encode
-    design_space = {
-        "batch_size": np.array([16, 32, 64, 128]),
-        "learning_rate": np.linspace(0.001, 0.1, 16),
-        "momentum": np.linspace(0.6, 0.9, 4),
-    }
-    CROSSOVER_PROB = 0.3
-    MUTATION_PROB = 0.1
-    MATE_PROB = 0.5
-
-    POPULATION_SIZE = 8
-    SELECT_SIZE = 4
-    MAX_GEN = 10
-    OFFLINE_DATA = "./lenet-all.csv"
-
-    initialize()
-
+async def main() -> None:
+    # We record all searched hyperparameter sets and
+    # test whether there are duplicates when adding new offsprings,
+    # which truncate repeated trials, saving the time as a result
     evaluated_history: dict[int, float] = dict()
 
     while len(evaluated_history) < 20:
         population = toolbox.random_population(POPULATION_SIZE)
 
         # This step takes a lot of time
-        fitnesses = map(toolbox.evaluate, population)
-        for ind, fit in zip(population, fitnesses):
+        fitness = await asyncio.gather(*map(toolbox.evaluate, population))
+        for ind, fit in zip(population, fitness):
             evaluated_history[toolbox.hash_individual(ind)] = fit[0]
             ind.fitness.values = fit
         selected_ind = toolbox.select(population, SELECT_SIZE)
@@ -181,3 +162,26 @@ if __name__ == "__main__":
         population[:] = offspring
 
     print(sorted(evaluated_history.values()))
+
+
+if __name__ == "__main__":
+    toolbox = base.Toolbox()
+
+    # Define the hyperparameter searching space, which need 8 bits to encode
+    design_space = {
+        "batch_size": np.array([16, 32, 64, 128]),
+        "learning_rate": np.linspace(0.001, 0.1, 16),
+        "momentum": np.linspace(0.6, 0.9, 4),
+    }
+    CROSSOVER_PROB = 0.3
+    MUTATION_PROB = 0.1
+    MATE_PROB = 0.5
+
+    POPULATION_SIZE = 8
+    SELECT_SIZE = 4
+    MAX_GEN = 10
+    OFFLINE_DATA = "./lenet-all.csv"
+
+    initialize()
+
+    asyncio.run(main())
