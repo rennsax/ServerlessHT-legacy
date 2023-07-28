@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import random
+import logging
 
 import numpy as np
 from deap import base, creator, tools
@@ -165,6 +166,8 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
     toolbox = base.Toolbox()
 
     # Define the hyperparameter searching space, which need 8 bits to encode

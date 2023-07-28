@@ -1,27 +1,90 @@
 import asyncio
+import hashlib
+import logging
+import pathlib
 
 from models import Hyperparameter
 
+EPOCH: int = 20
+TRAIN_DATA_PATH: str = "mnist.tar.gz"
+TEST_DATA_PATH: str = "mnist.tar.gz"
+WORKER_NUM: int = 4
+
+
+def hash_hyperparameter(params: Hyperparameter) -> str:
+    m = hashlib.sha1()
+    m.update(str(params).encode())
+    return m.hexdigest()
+
 
 async def train(params: Hyperparameter) -> tuple[float]:
-    command = ["sleep", "5"]
+    output_file = pathlib.Path(hash_hyperparameter(params) + ".txt")
+    command = [
+        "python3",
+        "EC2.py",
+        "--total-groups",
+        "1",
+        "--num-parts",
+        str(WORKER_NUM),
+        "--port",
+        "5000",
+        "--bucket-name",
+        "fychttptest1",
+        "--batch-size",
+        f"{params.batch_size:d}",
+        "--lr",
+        f"{params.learning_rate:f}",
+        "--momentum",
+        f"{params.momentum:f}",
+        "--epoch",
+        f"{EPOCH}",
+        "--reinvoke-time",
+        "300",
+        "--data-s3path",
+        TRAIN_DATA_PATH,
+        "--test-data-path",
+        TEST_DATA_PATH,
+        "--output-file",
+        output_file,
+        "--limit-loss",
+        "10.0",
+        "--limit-epoch",
+        "5",
+    ]
     process = await asyncio.create_subprocess_exec(
         *command,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
     )
     await process.wait()
-    return (1.0,)
+    try:
+        with open(output_file, "r") as f:
+            lines = f.readlines()
+        if len(lines) == 0:
+            raise RuntimeError("no output")
+        res = lines[0].strip().split(",")
+        if len(res) != 3:
+            raise RuntimeError("invalid output")
+        logger.info("%s: %s", params, res)
+        pathlib.Path.unlink(output_file)
+    except FileNotFoundError:
+        logger.error("%s: output file not found", params)
+    except RuntimeError as e:
+        logger.error("%s: RuntimeError %s", params, e)
+    except Exception as e:
+        logger.debug("%s: Other exception %s", params, e)
+
+    return (*map(float, res),)
+
+
+logger = logging.getLogger(__name__)
 
 
 async def main() -> int:
-    params = [
-        Hyperparameter(batch_size=16, learning_rate=0.1, momentum=0.6) for _ in range(5)
-    ]
-    print(await asyncio.gather(*map(train, params)))
-    return 1
+    with open(pathlib.Path("./lenet-all.csv"), "r") as f:
+        print(f.readlines())
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     res = asyncio.run(main())
-    print(res)
