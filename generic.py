@@ -101,6 +101,7 @@ def initialize():
 
     async def evaluate_individual(
         ind: creator.Individual,
+        ind_idx: int,
         offline_data=handle_offline_data(OFFLINE_DATA),
     ) -> tuple[float]:
         """Evaluate the fitness of an individual
@@ -111,7 +112,7 @@ def initialize():
         """
         # if offline data is provided
         # acc, _ = offline_data[hash_individual(ind)]
-        res = await train(decode_individual(ind))
+        res = await train(decode_individual(ind), ind_idx)
         return (res[0],)
 
     toolbox.register("random_individual", random_individual)
@@ -136,10 +137,15 @@ async def main() -> None:
         population = toolbox.random_population(POPULATION_SIZE)
 
         # This step takes a lot of time
-        fitness = await asyncio.gather(*map(toolbox.evaluate, population))
+        fitness_task: asyncio.Task[tuple[float]] = []
+        for i, ind in enumerate(population):
+            fitness_task.append(
+                asyncio.create_task(toolbox.evaluate(ind, i + len(evaluated_history)))
+            )
+        fitness: list[tuple[float]] = await asyncio.gather(*fitness_task)
         for ind, fit in zip(population, fitness):
             evaluated_history[toolbox.hash_individual(ind)] = fit[0]
-            ind.fitness.values = fit
+            ind.fitness.values = (fit[0],)
         selected_ind = toolbox.select(population, SELECT_SIZE)
         temp_ind = [toolbox.clone(ind) for ind in selected_ind]
         temp_ind += [

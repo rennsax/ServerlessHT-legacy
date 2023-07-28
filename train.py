@@ -17,8 +17,9 @@ def hash_hyperparameter(params: Hyperparameter) -> str:
     return m.hexdigest()
 
 
-async def train(params: Hyperparameter) -> tuple[float]:
-    output_file = pathlib.Path(hash_hyperparameter(params) + ".txt")
+async def train(params: Hyperparameter, index: int) -> tuple[float]:
+    output_file = pathlib.Path("output/" + str(index) + ".txt")
+    log_output = pathlib.Path("subprocess/" + str(index) + ".txt")
     command = [
         "python3",
         "EC2.py",
@@ -27,7 +28,7 @@ async def train(params: Hyperparameter) -> tuple[float]:
         "--num-parts",
         str(WORKER_NUM),
         "--port",
-        "5000",
+        f"{9000+index}",
         "--bucket-name",
         "fychttptest1",
         "--batch-size",
@@ -51,12 +52,14 @@ async def train(params: Hyperparameter) -> tuple[float]:
         "--limit-epoch",
         "5",
     ]
-    process = await asyncio.create_subprocess_exec(
+    log_file = open(log_output, "w")
+    proc = await asyncio.create_subprocess_exec(
         *command,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
+        stdout=log_file,
+        stderr=log_file,
     )
-    await process.wait()
+    await proc.wait()
+    log_file.close()
     try:
         with open(output_file, "r") as f:
             lines = f.readlines()
