@@ -1,10 +1,10 @@
 {
-    "generic.crossoverProb": 0.3,
-    "generic.mateProb": 0.5,
-    "generic.maxEvaluatedIndividual": 20,
-    "generic.mutationProb": 0.1,
-    "generic.population.selectNumber": 4,
-    "generic.population.size": 8,
+    "genetic.crossoverProb": 0.3,
+    "genetic.mateProb": 0.5,
+    "genetic.maxEvaluatedIndividual": 20,
+    "genetic.mutationProb": 0.1,
+    "genetic.population.selectNumber": 4,
+    "genetic.population.size": 8,
 
     "train.epoch": 20,
     "train.LambdaName": "Hyperparameter_optimization_group_rfm",

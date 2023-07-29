@@ -15,12 +15,12 @@ from train import train
 with open("config.json", "r") as f:
     config: dict[str, Any] = json.load(f)
 
-CROSSOVER_PROB: float = config["generic.crossoverProb"]
-MUTATION_PROB: float = config["generic.mutationProb"]
-MATE_PROB: float = config["generic.mateProb"]
-MAX_EVALUATED_INDIVIDUAL: int = config["generic.maxEvaluatedIndividual"]
-POPULATION_SIZE: int = config["generic.population.size"]
-SELECT_SIZE: int = config["generic.population.selectNumber"]
+CROSSOVER_PROB: float = config["genetic.crossoverProb"]
+MUTATION_PROB: float = config["genetic.mutationProb"]
+MATE_PROB: float = config["genetic.mateProb"]
+MAX_EVALUATED_INDIVIDUAL: int = config["genetic.maxEvaluatedIndividual"]
+POPULATION_SIZE: int = config["genetic.population.size"]
+SELECT_SIZE: int = config["genetic.population.selectNumber"]
 
 logger = logging.getLogger(__name__)
 logger.propagate = True  # default to be True in fact
