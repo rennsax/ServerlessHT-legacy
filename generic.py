@@ -42,18 +42,21 @@ design_space = {
     "momentum": np.linspace(0.6, 0.9, 4),
 }
 np.random.randint(0, 1000)
-# RANDOM_SEED = np.random.randint(0, 1000)
-RANDOM_SEED = 139
+RANDOM_SEED = np.random.randint(0, 1000)
 np.random.seed(RANDOM_SEED)
 random.seed(RANDOM_SEED)
 
 
 def initialize(*, offline_data=None):
     # Objective: maximize the accuracy
-    creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+    creator.create(
+        "FitnessMin",
+        base.Fitness,
+        weights=(-1.0, 0, 0) if offline_data is None else (-1.0, 0),
+    )
     # Individual: a list of binaries
     # `fitness` will become an member of `Individual`
-    creator.create("Individual", list, fitness=creator.FitnessMax)
+    creator.create("Individual", list, fitness=creator.FitnessMin)
 
     ind_length = [int(np.log2(design_space[key].shape[0])) for key in design_space]
 
@@ -64,12 +67,12 @@ def initialize(*, offline_data=None):
         returns:
             a binary list, i.e. list[int]
         """
-        ind = list()
+        res = list()
         for i, key in enumerate(design_space):
             # idx = np.where(design_space[key] == getattr(paras, key))[0][0]
             idx = np.argmin(np.abs(design_space[key] - getattr(paras, key)))
-            ind.append(list(map(int, np.binary_repr(int(idx), width=ind_length[i]))))
-        return sum(ind, [])
+            res.append(list(map(int, np.binary_repr(int(idx), width=ind_length[i]))))
+        return creator.Individual(sum(res, []))
 
     def decode_individual(ind: creator.Individual) -> Hyperparameter:
         """Decode a binary list into a hyperparameter
@@ -143,7 +146,7 @@ def initialize(*, offline_data=None):
         async def evaluate_individual(
             ind: creator.Individual,
             ind_idx: int,
-        ) -> tuple[float]:
+        ) -> tuple[float, ...]:
             """Evaluate the fitness of an individual
             args:
                 ind: the individual
@@ -151,7 +154,7 @@ def initialize(*, offline_data=None):
                 a tuple of fitness value (test accuracy)
             """
             res = await train(decode_individual(ind), ind_idx)
-            return (res[0],)
+            return (*res,)
 
     else:
         # Use offline data
@@ -159,7 +162,7 @@ def initialize(*, offline_data=None):
             ind: creator.Individual,
             *args,
             offline_data=handle_offline_data(offline_data),
-        ) -> tuple[float]:
+        ) -> tuple[float, ...]:
             """Evaluate the fitness of an individual
             args:
                 ind: the individual
@@ -167,8 +170,8 @@ def initialize(*, offline_data=None):
                 a tuple of fitness value (test accuracy)
             """
             # if offline data is provided
-            acc, _ = offline_data[hash_individual(ind)]
-            return (acc,)
+            acc = offline_data[hash_individual(ind)]
+            return (*acc,)
 
     toolbox.register("random_individual", random_individual)
     toolbox.register("random_population", random_population)
@@ -186,7 +189,7 @@ async def main() -> None:
     # We record all searched hyperparameter sets and
     # test whether there are duplicates when adding new offsprings,
     # which truncate repeated trials, saving the time as a result
-    evaluated_history: dict[int, float] = dict()
+    evaluated_history: dict[int, tuple[float, ...]] = dict()
 
     population = toolbox.random_population(POPULATION_SIZE)
     while len(evaluated_history) < MAX_EVALUATED_INDIVIDUAL:
@@ -196,7 +199,7 @@ async def main() -> None:
             fitness_task.append(
                 asyncio.create_task(toolbox.evaluate(ind, i + len(evaluated_history)))
             )
-        fitness: list[tuple[float]] = await asyncio.gather(*fitness_task)
+        fitness: list[tuple[float, ...]] = await asyncio.gather(*fitness_task)
         for ind, fit in zip(population, fitness):
             if (
                 previous_fit := evaluated_history.get(
@@ -209,9 +212,9 @@ async def main() -> None:
                     toolbox.decode_individual(ind),
                     previous_fit,
                 )
-            evaluated_history[hash_value] = fit[0]
-            ind.fitness.values = (fit[0],)
-            logger.debug("record: (%s), %.4f", toolbox.decode_individual(ind), fit[0])
+            evaluated_history[hash_value] = fit
+            ind.fitness.values = fit
+            logger.debug("record: (%s), %.4f", toolbox.decode_individual(ind), fit)
 
         if len(evaluated_history) >= MAX_EVALUATED_INDIVIDUAL:
             break
@@ -254,7 +257,7 @@ async def main() -> None:
     logger.info("evaluated individual number: %d", len(evaluated_history))
     logger.info(
         "evaluated history: %s",
-        sorted(evaluated_history.items(), key=lambda kv: kv[-1], reverse=True),
+        sorted(evaluated_history.items(), key=lambda kv: kv[-1][0], reverse=True),
     )
 
 

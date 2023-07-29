@@ -68,9 +68,9 @@ async def train(params: Hyperparameter, index: int) -> tuple[float, ...]:
         "--output-file",
         output_file.as_posix(),
         "--limit-loss",
-        "10.0",
+        "0.8",
         "--limit-epoch",
-        "5",
+        "10",
         "--lambda-name",
         LAMBDA_NAME,
     ]
