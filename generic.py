@@ -2,6 +2,7 @@ import asyncio
 import csv
 import random
 import logging
+import argparse
 
 import numpy as np
 from deap import base, creator, tools
@@ -13,12 +14,12 @@ from models import Hyperparameter
 # random.seed(12)
 
 
-def initialize():
+def initialize(*, offline_data=None):
     # Objective: maximize the accuracy
-    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+    creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     # Individual: a list of binaries
     # `fitness` will become an member of `Individual`
-    creator.create("Individual", list, fitness=creator.FitnessMin)
+    creator.create("Individual", list, fitness=creator.FitnessMax)
 
     ind_length = [int(np.log2(design_space[key].shape[0])) for key in design_space]
 
@@ -99,21 +100,37 @@ def initialize():
             res[key] = (float(row["accuracy"]), float(row["time"]))
         return res
 
-    async def evaluate_individual(
-        ind: creator.Individual,
-        ind_idx: int,
-        offline_data=handle_offline_data(OFFLINE_DATA),
-    ) -> tuple[float]:
-        """Evaluate the fitness of an individual
-        args:
-            ind: the individual
-        returns:
-            a tuple of fitness value (test accuracy)
-        """
-        # if offline data is provided
-        # acc, _ = offline_data[hash_individual(ind)]
-        res = await train(decode_individual(ind), ind_idx)
-        return (res[0],)
+    if offline_data is None:
+        # Calc online
+        async def evaluate_individual(
+            ind: creator.Individual,
+            ind_idx: int,
+        ) -> tuple[float]:
+            """Evaluate the fitness of an individual
+            args:
+                ind: the individual
+            returns:
+                a tuple of fitness value (test accuracy)
+            """
+            res = await train(decode_individual(ind), ind_idx)
+            return (res[0],)
+
+    else:
+        # Use offline data
+        async def evaluate_individual(
+            ind: creator.Individual,
+            *args,
+            offline_data=handle_offline_data(offline_data),
+        ) -> tuple[float]:
+            """Evaluate the fitness of an individual
+            args:
+                ind: the individual
+            returns:
+                a tuple of fitness value (test accuracy)
+            """
+            # if offline data is provided
+            acc, _ = offline_data[hash_individual(ind)]
+            return (acc,)
 
     toolbox.register("random_individual", random_individual)
     toolbox.register("random_population", random_population)
@@ -133,7 +150,7 @@ async def main() -> None:
     # which truncate repeated trials, saving the time as a result
     evaluated_history: dict[int, float] = dict()
 
-    while len(evaluated_history) < 20:
+    while len(evaluated_history) < MAX_EVALUATED_INDIVIDUAL:
         population = toolbox.random_population(POPULATION_SIZE)
 
         # This step takes a lot of time
@@ -148,14 +165,17 @@ async def main() -> None:
             ind.fitness.values = (fit[0],)
         selected_ind = toolbox.select(population, SELECT_SIZE)
         temp_ind = [toolbox.clone(ind) for ind in selected_ind]
-        temp_ind += [
-            toolbox.random_individual() for _ in range(POPULATION_SIZE - SELECT_SIZE)
-        ]
+        # Add more individuals in order to boost the diversity of population
+        temp_ind += toolbox.random_population(POPULATION_SIZE - SELECT_SIZE)
         for ind in temp_ind:
             toolbox.mutate(ind)
 
         offspring: list[creator.Individual] = []
-        while len(offspring) < POPULATION_SIZE:
+        while (
+            len(offspring) + len(evaluated_history) < MAX_EVALUATED_INDIVIDUAL
+            # Possible: len(offspring) == POPULATION_SIZE + 1
+            and len(offspring) < POPULATION_SIZE
+        ):
             parents = random.sample(temp_ind, 2)
             if np.random.rand() < MATE_PROB:
                 toolbox.crossover(*parents)
@@ -168,13 +188,25 @@ async def main() -> None:
 
         population[:] = offspring
 
-    print(sorted(evaluated_history.values()))
+    logger.info(
+        "evaluated history: %s",
+        sorted(evaluated_history.items(), key=lambda kv: kv[-1], reverse=True),
+    )
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
+    parser = argparse.ArgumentParser()
     toolbox = base.Toolbox()
+
+    parser.add_argument(
+        "--offline-data",
+        type=str,
+        default=None,
+        help="The offline data path. If not specified, calculate online.",
+    )
+    args = parser.parse_args()
 
     # Define the hyperparameter searching space, which need 8 bits to encode
     design_space = {
@@ -185,12 +217,11 @@ if __name__ == "__main__":
     CROSSOVER_PROB = 0.3
     MUTATION_PROB = 0.1
     MATE_PROB = 0.5
+    MAX_EVALUATED_INDIVIDUAL = 20
 
     POPULATION_SIZE = 8
     SELECT_SIZE = 4
-    MAX_GEN = 10
-    OFFLINE_DATA = "./lenet-all.csv"
 
-    initialize()
+    initialize(offline_data=args.offline_data)
 
     asyncio.run(main())
