@@ -28,7 +28,7 @@ stream_handler = logging.StreamHandler()
 stream_handler.setLevel(logging.DEBUG)
 stream_handler.setFormatter(
     logging.Formatter(
-        "{asctime} | {name} | {levelname}\n {message}\n",
+        "{asctime} | {name} | L{lineno} | {levelname}\n {message}\n",
         datefmt="%Y-%m-%d %H:%M:%S",
         style="{",
     )
@@ -41,8 +41,9 @@ design_space = {
     "learning_rate": np.linspace(0.001, 0.1, 16),
     "momentum": np.linspace(0.6, 0.9, 4),
 }
-
-RANDOM_SEED = np.random.randint(0, 1000)
+np.random.randint(0, 1000)
+# RANDOM_SEED = np.random.randint(0, 1000)
+RANDOM_SEED = 139
 np.random.seed(RANDOM_SEED)
 random.seed(RANDOM_SEED)
 
@@ -117,7 +118,7 @@ def initialize(*, offline_data=None):
         res: list[creator.Individual] = list()
         while len(res) < n:
             ind = random_individual()
-            if ind not in res:
+            if len(list(filter(lambda _ind: _ind == ind, res))) == 0:
                 res.append(ind)
         return res
 
@@ -187,9 +188,8 @@ async def main() -> None:
     # which truncate repeated trials, saving the time as a result
     evaluated_history: dict[int, float] = dict()
 
+    population = toolbox.random_population(POPULATION_SIZE)
     while len(evaluated_history) < MAX_EVALUATED_INDIVIDUAL:
-        population = toolbox.random_population(POPULATION_SIZE)
-
         # This step takes a lot of time
         fitness_task: list[asyncio.Task[tuple[float]]] = list()
         for i, ind in enumerate(population):
@@ -198,16 +198,45 @@ async def main() -> None:
             )
         fitness: list[tuple[float]] = await asyncio.gather(*fitness_task)
         for ind, fit in zip(population, fitness):
-            evaluated_history[toolbox.hash_individual(ind)] = fit[0]
+            if (
+                previous_fit := evaluated_history.get(
+                    hash_value := toolbox.hash_individual(ind)
+                )
+            ) is not None:
+                logger.critical(
+                    "Duplicate trial detected: %d(%s) with fitness %s",
+                    toolbox.hash_individual(ind),
+                    toolbox.decode_individual(ind),
+                    previous_fit,
+                )
+            evaluated_history[hash_value] = fit[0]
             ind.fitness.values = (fit[0],)
+            logger.debug("record: (%s), %.4f", toolbox.decode_individual(ind), fit[0])
+
+        if len(evaluated_history) >= MAX_EVALUATED_INDIVIDUAL:
+            break
+
         selected_ind = toolbox.select(population, SELECT_SIZE)
         temp_ind = [toolbox.clone(ind) for ind in selected_ind]
         # Add more individuals in order to boost the diversity of population
         temp_ind += toolbox.random_population(POPULATION_SIZE - SELECT_SIZE)
         for ind in temp_ind:
+            del ind.fitness.values
             toolbox.mutate(ind)
 
-        offspring: list[creator.Individual] = []
+        # tool function to check if an individual is duplicated
+        offspring: list[creator.Individual] = list()
+
+        def not_duplicated(
+            ind: creator.Individual,
+        ) -> bool:
+            if toolbox.hash_individual(ind) in evaluated_history:
+                return False
+            for ind2 in offspring:
+                if ind == ind2:
+                    return False
+            return True
+
         while (
             len(offspring) + len(evaluated_history) < MAX_EVALUATED_INDIVIDUAL
             # Possible: len(offspring) == POPULATION_SIZE + 1
@@ -216,12 +245,9 @@ async def main() -> None:
             parents = random.sample(temp_ind, 2)
             if np.random.rand() < MATE_PROB:
                 toolbox.crossover(*parents)
-            new_offspring = filter(
-                lambda ind: toolbox.hash_individual(ind) not in evaluated_history
-                and ind not in offspring,
-                parents,
-            )
-            offspring += list(new_offspring)
+
+            new_offspring = list(filter(not_duplicated, parents))
+            offspring[:] = offspring + list(map(toolbox.clone, new_offspring))
 
         population[:] = offspring
 
@@ -233,7 +259,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     logger.debug("Use random seed: %d", RANDOM_SEED)
 
     parser = argparse.ArgumentParser()
