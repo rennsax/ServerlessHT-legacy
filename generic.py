@@ -1,17 +1,50 @@
+import argparse
 import asyncio
 import csv
-import random
+import json
 import logging
-import argparse
+import random
+from typing import Any
 
 import numpy as np
-from deap import base, creator, tools
+from deap import base, creator, tools  # type: ignore
 
-from train import train
 from models import Hyperparameter
+from train import train
 
-# np.random.seed(12)
-# random.seed(12)
+with open("config.json", "r") as f:
+    config: dict[str, Any] = json.load(f)
+
+CROSSOVER_PROB: float = config["generic.crossoverProb"]
+MUTATION_PROB: float = config["generic.mutationProb"]
+MATE_PROB: float = config["generic.mateProb"]
+MAX_EVALUATED_INDIVIDUAL: int = config["generic.maxEvaluatedIndividual"]
+POPULATION_SIZE: int = config["generic.population.size"]
+SELECT_SIZE: int = config["generic.population.selectNumber"]
+
+logger = logging.getLogger(__name__)
+logger.propagate = True  # default to be True in fact
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.DEBUG)
+stream_handler.setFormatter(
+    logging.Formatter(
+        "{asctime} | {name} | {levelname}\n {message}\n",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        style="{",
+    )
+)
+logger.addHandler(stream_handler)
+
+toolbox = base.Toolbox()
+design_space = {
+    "batch_size": np.array([16, 32, 64, 128]),
+    "learning_rate": np.linspace(0.001, 0.1, 16),
+    "momentum": np.linspace(0.6, 0.9, 4),
+}
+
+RANDOM_SEED = np.random.randint(0, 1000)
+np.random.seed(RANDOM_SEED)
+random.seed(RANDOM_SEED)
 
 
 def initialize(*, offline_data=None):
@@ -34,7 +67,7 @@ def initialize(*, offline_data=None):
         for i, key in enumerate(design_space):
             # idx = np.where(design_space[key] == getattr(paras, key))[0][0]
             idx = np.argmin(np.abs(design_space[key] - getattr(paras, key)))
-            ind.append(list(map(int, np.binary_repr(idx, width=ind_length[i]))))
+            ind.append(list(map(int, np.binary_repr(int(idx), width=ind_length[i]))))
         return sum(ind, [])
 
     def decode_individual(ind: creator.Individual) -> Hyperparameter:
@@ -46,12 +79,12 @@ def initialize(*, offline_data=None):
         """
         assert sum(ind_length) == len(ind), "The length of ind is not correct"
         p = 0
-        paras = dict()
+        params = dict()
         for i, x in enumerate(ind_length):
             idx = int("".join(map(str, ind[i : i + x])), 2)
-            paras[list(design_space)[i]] = design_space[list(design_space)[i]][idx]
+            params[list(design_space)[i]] = design_space[list(design_space)[i]][idx]
             p += x
-        return Hyperparameter(**paras)
+        return Hyperparameter(**params)
 
     def hash_individual(ind: creator.Individual) -> int:
         """Generate an unique hash value for an individual
@@ -81,21 +114,25 @@ def initialize(*, offline_data=None):
         returns:
             a list of binary lists, i.e. list[list[int]]
         """
-        res = list()
+        res: list[creator.Individual] = list()
         while len(res) < n:
             ind = random_individual()
             if ind not in res:
                 res.append(ind)
         return res
 
-    def handle_offline_data(path: str) -> dict[int, tuple[float]]:
+    def handle_offline_data(path: str) -> dict[int, tuple[float, float]]:
         headers = (*Hyperparameter.model_fields,) + ("accuracy", "time")
         with open(path, "r") as f:
             reader = csv.DictReader(f, headers)
             data = [*reader]
         res = dict()
         for row in data:
-            parameters = Hyperparameter(**{k: float(row[k]) for k in headers[:-2]})
+            parameters = Hyperparameter(
+                batch_size=int(row["batch_size"]),
+                learning_rate=float(row["learning_rate"]),
+                momentum=float(row["momentum"]),
+            )
             key = hash_individual(encode_individual(parameters))
             res[key] = (float(row["accuracy"]), float(row["time"]))
         return res
@@ -117,7 +154,7 @@ def initialize(*, offline_data=None):
 
     else:
         # Use offline data
-        async def evaluate_individual(
+        async def evaluate_individual(  # type: ignore
             ind: creator.Individual,
             *args,
             offline_data=handle_offline_data(offline_data),
@@ -154,7 +191,7 @@ async def main() -> None:
         population = toolbox.random_population(POPULATION_SIZE)
 
         # This step takes a lot of time
-        fitness_task: asyncio.Task[tuple[float]] = []
+        fitness_task: list[asyncio.Task[tuple[float]]] = list()
         for i, ind in enumerate(population):
             fitness_task.append(
                 asyncio.create_task(toolbox.evaluate(ind, i + len(evaluated_history)))
@@ -188,6 +225,7 @@ async def main() -> None:
 
         population[:] = offspring
 
+    logger.info("evaluated individual number: %d", len(evaluated_history))
     logger.info(
         "evaluated history: %s",
         sorted(evaluated_history.items(), key=lambda kv: kv[-1], reverse=True),
@@ -195,10 +233,10 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    logger.debug("Use random seed: %d", RANDOM_SEED)
+
     parser = argparse.ArgumentParser()
-    toolbox = base.Toolbox()
 
     parser.add_argument(
         "--offline-data",
@@ -209,18 +247,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Define the hyperparameter searching space, which need 8 bits to encode
-    design_space = {
-        "batch_size": np.array([16, 32, 64, 128]),
-        "learning_rate": np.linspace(0.001, 0.1, 16),
-        "momentum": np.linspace(0.6, 0.9, 4),
-    }
-    CROSSOVER_PROB = 0.3
-    MUTATION_PROB = 0.1
-    MATE_PROB = 0.5
-    MAX_EVALUATED_INDIVIDUAL = 20
-
-    POPULATION_SIZE = 8
-    SELECT_SIZE = 4
 
     initialize(offline_data=args.offline_data)
 

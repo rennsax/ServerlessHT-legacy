@@ -2,15 +2,33 @@ import asyncio
 import hashlib
 import logging
 import pathlib
+import json
+from typing import Any
 
 from models import Hyperparameter
 
-EPOCH: int = 20
-TRAIN_DATA_PATH: str = "mnist.tar.gz"
-TEST_DATA_PATH: str = "mnist.tar.gz"
-WORKER_NUM: int = 8
-REINVOKE_TIME: int = 840  # 14 minutes
-LAMBDA_NAME = "Hyperparameter_optimization_group_rfm"
+with open("config.json", "r") as f:
+    config: dict[str, Any] = json.load(f)
+
+EPOCH: int = config["train.epoch"]
+TRAIN_DATA_PATH: str = config["train.trainSet"]
+TEST_DATA_PATH: str = config["train.testSet"]
+WORKER_NUM: int = config["train.workerNum"]
+REINVOKE_TIME: int = config["train.restartTime"]
+LAMBDA_NAME: str = config["train.LambdaName"]
+
+logger = logging.getLogger(__name__)
+logger.propagate = True  # default to be True in fact
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.DEBUG)
+stream_handler.setFormatter(
+    logging.Formatter(
+        "{asctime} | {name} | {levelname}\n {message}\n",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        style="{",
+    )
+)
+logger.addHandler(stream_handler)
 
 
 def hash_hyperparameter(params: Hyperparameter) -> str:
@@ -19,7 +37,7 @@ def hash_hyperparameter(params: Hyperparameter) -> str:
     return m.hexdigest()
 
 
-async def train(params: Hyperparameter, index: int) -> tuple[float]:
+async def train(params: Hyperparameter, index: int) -> tuple[float, ...]:
     output_file = pathlib.Path("output/" + str(index) + ".txt")
     log_output = pathlib.Path("subprocess/" + str(index) + ".txt")
     command: list[str] = [
@@ -74,27 +92,27 @@ async def train(params: Hyperparameter, index: int) -> tuple[float]:
         res = lines[0].strip().split(",")
         if len(res) != 3:
             raise RuntimeError("invalid output")
-        logger.info("%s: %s", params, res)
-        # pathlib.Path.unlink(output_file)
-    except Exception as e:
-        logger.error("%s: %s (%s)", params, type(e), e)
-        return (0, 0, 0)
+        logger.info("Train (%s) over with result %s", params, res)
+    except Exception:
+        logger.exception("Train (%s) failed", params)
+        return (0.0, 0.0, 0.0)
     else:
         return (*map(float, res),)
-
-
-logger = logging.getLogger(__name__)
 
 
 async def main():
     logger.info(
         await train(
-            Hyperparameter(batch_size=128, learning_rate=0.001, momentum=0.9), 0
+            Hyperparameter(
+                batch_size=128,
+                learning_rate=0.001,
+                momentum=0.9,
+            ),
+            0,
         )
     )
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logger.setLevel(logging.DEBUG)
     res = asyncio.run(main())
-    logging.shutdown()

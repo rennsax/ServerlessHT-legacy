@@ -1,0 +1,15 @@
+{
+    "generic.crossoverProb": 0.3,
+    "generic.mateProb": 0.5,
+    "generic.maxEvaluatedIndividual": 20,
+    "generic.mutationProb": 0.1,
+    "generic.population.selectNumber": 4,
+    "generic.population.size": 8,
+
+    "train.epoch": 20,
+    "train.LambdaName": "Hyperparameter_optimization_group_rfm",
+    "train.restartTime": 840,
+    "train.testSet": "mnist.tar.gz",
+    "train.trainSet": "mnist.tar.gz",
+    "train.workerNum": 8
+}
