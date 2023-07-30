@@ -10,6 +10,7 @@ import numpy as np
 from deap import base, creator, tools  # type: ignore
 
 from models import Hyperparameter
+from train import logger as train_logger
 from train import train
 
 with open("config.json", "r") as f:
@@ -180,6 +181,7 @@ def initialize(*, offline_data=None):
     toolbox.register("hash_individual", hash_individual)
     toolbox.register("hash_decode_individual", hash_decode_individual)
     toolbox.register("evaluate", evaluate_individual)
+    toolbox.register("handle_offline")
     toolbox.register("select", tools.selTournament, tournsize=2)
     toolbox.register("crossover", tools.cxUniform, indpb=CROSSOVER_PROB)
     toolbox.register("mutate", tools.mutFlipBit, indpb=MUTATION_PROB)
@@ -227,9 +229,9 @@ async def main() -> None:
             del ind.fitness.values
             toolbox.mutate(ind)
 
-        # tool function to check if an individual is duplicated
         offspring: list[creator.Individual] = list()
 
+        # tool function to check if an individual is duplicated
         def not_duplicated(
             ind: creator.Individual,
         ) -> bool:
@@ -246,23 +248,36 @@ async def main() -> None:
             and len(offspring) < POPULATION_SIZE
         ):
             parents = random.sample(temp_ind, 2)
+            parents = list(map(toolbox.clone, parents))
             if np.random.rand() < MATE_PROB:
-                toolbox.crossover(*parents)
+                new_offspring = toolbox.crossover(*parents)
 
-            new_offspring = list(filter(not_duplicated, parents))
-            offspring[:] = offspring + list(map(toolbox.clone, new_offspring))
+            offspring[:] = offspring + list(filter(not_duplicated, new_offspring))
 
         population[:] = offspring
 
     logger.info("evaluated individual number: %d", len(evaluated_history))
     logger.info(
         "evaluated history: %s",
-        sorted(evaluated_history.items(), key=lambda kv: kv[-1][0], reverse=True),
+        list(
+            map(
+                lambda record: (
+                    toolbox.decode_individual(
+                        toolbox.hash_decode_individual(record[0])
+                    ),
+                    record[1],
+                ),
+                sorted(
+                    evaluated_history.items(), key=lambda kv: kv[-1][0], reverse=True
+                ),
+            )
+        ),
     )
 
 
 if __name__ == "__main__":
     logger.setLevel(logging.INFO)
+    train_logger.setLevel(logging.INFO)
     logger.debug("Use random seed: %d", RANDOM_SEED)
 
     parser = argparse.ArgumentParser()
