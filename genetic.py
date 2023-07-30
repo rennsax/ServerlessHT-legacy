@@ -181,7 +181,6 @@ def initialize(*, offline_data=None):
     toolbox.register("hash_individual", hash_individual)
     toolbox.register("hash_decode_individual", hash_decode_individual)
     toolbox.register("evaluate", evaluate_individual)
-    toolbox.register("handle_offline")
     toolbox.register("select", tools.selTournament, tournsize=2)
     toolbox.register("crossover", tools.cxUniform, indpb=CROSSOVER_PROB)
     toolbox.register("mutate", tools.mutFlipBit, indpb=MUTATION_PROB)
@@ -251,8 +250,7 @@ async def main() -> None:
             parents = list(map(toolbox.clone, parents))
             if np.random.rand() < MATE_PROB:
                 new_offspring = toolbox.crossover(*parents)
-
-            offspring[:] = offspring + list(filter(not_duplicated, new_offspring))
+                offspring[:] = offspring + list(filter(not_duplicated, new_offspring))
 
         population[:] = offspring
 

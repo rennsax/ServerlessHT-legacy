@@ -1,12 +1,12 @@
 {
     "genetic.crossoverProb": 0.3,
     "genetic.mateProb": 0.5,
-    "genetic.maxEvaluatedIndividual": 20,
+    "genetic.maxEvaluatedIndividual": 18,
     "genetic.mutationProb": 0.1,
-    "genetic.population.selectNumber": 4,
-    "genetic.population.size": 8,
+    "genetic.population.selectNumber": 3,
+    "genetic.population.size": 6,
 
-    "train.epoch": 20,
+    "train.epoch": 6,
     "train.LambdaName": "Hyperparameter_optimization_group_rfm",
     "train.restartTime": 840,
     "train.testSet": "mnist.tar.gz",
