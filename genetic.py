@@ -42,7 +42,6 @@ design_space = {
     "learning_rate": np.linspace(0.001, 0.1, 16),
     "momentum": np.linspace(0.6, 0.9, 4),
 }
-np.random.randint(0, 1000)
 RANDOM_SEED = np.random.randint(0, 1000)
 np.random.seed(RANDOM_SEED)
 random.seed(RANDOM_SEED)
@@ -271,6 +270,15 @@ async def main() -> None:
             )
         ),
     )
+
+    if args.offline_data is None:
+        total_time: float = 0
+        total_cost: float = 0
+        for _, t, cost in evaluated_history.values():
+            total_time += t
+            total_cost += cost
+
+        logger.info("Total cost: %f; Total time: %f", total_cost, total_time)
 
 
 if __name__ == "__main__":
